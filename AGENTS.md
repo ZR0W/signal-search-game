@@ -71,5 +71,6 @@ In rough priority order; confirm with the owner before starting, since goals and
 
 - Keep the design document current when mechanics or numbers change.
 - User-facing text: plain, short sentences; sentence case; say exactly what a control does.
-- Colours come from the CSS custom properties in `:root`. Amber is the player's signals, cyan is terrain readings, red/green/lavender are status only.
+- Colours come from the CSS custom properties in `:root`: amber (`--signal`) is the player's signals and chrome, green (`--cyan`, `--green`) is terrain readings, cyan (`--coral`) is the slope trace, red is alerts. The variable names predate the neon restyle. Canvas drawing code uses the same hex values as literals, plus the `ramp` function for terrain; change both together.
+- Keep the art direction original: inspired by anime control-room displays, with no logos, names, or graphics from existing works.
 - Respect `prefers-reduced-motion` (the run animation is already skipped under it).

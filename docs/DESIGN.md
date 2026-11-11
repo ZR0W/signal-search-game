@@ -118,7 +118,8 @@ Known limits: slope readings are recorded but not used by the estimate; the fixe
 - **Play view:** belief map with fog, path drawing, node loadout, forecast, report chart (height, slope along heading, energy vs distance), run log, rules summary.
 - **World settings view** (`#world`): preset, seed, layers, fairness rules, physics; live preview of true terrain with stall zones, a stall-free route, deepest point, and stats (steep %, flat %, pits, distance, route).
 - World settings persist in `localStorage`.
-- Single dark theme: amber for the player's signals, cyan for terrain readings.
+- Art direction: a neon instrument console. Black panels, amber for the player's signals and interface chrome, phosphor green for terrain and readings, cyan for the slope trace, red for alerts, violet for flat ground. Hazard striping, scanlines, square corners, condensed uppercase display type with monospace readouts. The mood is taken from anime control-room displays (Neon Genesis Evangelion was the stated inspiration); no logos, names, or graphics from any existing work are used.
+- The map is drawn as a dark green height ramp with bright contour lines; unexplored fog is black.
 
 ## 8. Reference games
 
