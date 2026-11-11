@@ -1,0 +1,663 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Signal Search</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  /* single-theme signal console: ink background, amber = your signals, cyan = terrain readings. Two views: play (map + loadout) and world settings (preview + layer stack) */
+  --ink:#0e131a; --panel:#151c26; --line:#273140; --text:#d8e0e9; --muted:#8693a3;
+  --signal:#f2a541; --cyan:#5cc8d6; --coral:#d9826b; --red:#e5615a; --green:#6cc58a; --lav:#afa9ec;
+  --display:"Chakra Petch","Segoe UI",system-ui,sans-serif;
+  --body:"IBM Plex Sans",system-ui,-apple-system,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--ink);color:var(--text);font-family:var(--body);font-size:15px;line-height:1.5}
+.wrap{max-width:1180px;margin:0 auto;padding:16px}
+header{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px 20px;margin-bottom:14px}
+.brand{display:flex;flex-wrap:wrap;align-items:center;gap:8px 18px}
+h1{font-family:var(--display);font-weight:600;font-size:24px;letter-spacing:.04em;margin:0;text-wrap:balance}
+h1 span{color:var(--signal)}
+h2{font-family:var(--display);font-weight:500;font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:0}
+nav{display:flex;gap:4px;border:1px solid var(--line);border-radius:6px;padding:3px}
+nav a{color:var(--muted);text-decoration:none;font-size:14px;padding:5px 12px;border-radius:4px}
+nav a.on{background:var(--panel);color:var(--signal)}
+nav a:focus-visible{outline:2px solid var(--signal)}
+.stats{display:flex;flex-wrap:wrap;gap:8px}
+.chip{font-family:var(--mono);font-size:13px;padding:4px 10px;border:1px solid var(--line);border-radius:4px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.chip b{font-weight:500;color:var(--signal)}
+.chip.good b{color:var(--green)} .chip.bad b{color:var(--red)}
+.grid{display:grid;grid-template-columns:1fr;gap:16px}
+@media(min-width:900px){.grid{grid-template-columns:minmax(0,1.15fr) minmax(320px,1fr)}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:14px}
+.card>h2{margin-bottom:8px}
+canvas.map{width:100%;aspect-ratio:1;display:block;border-radius:6px;background:#1a212c}
+#map{touch-action:none;cursor:crosshair}
+.hint{font-size:13px;color:var(--muted);margin:8px 0 0}
+.row{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;align-items:center}
+button{font-family:var(--body);font-size:14px;color:var(--text);background:transparent;border:1px solid #3a4658;border-radius:5px;padding:7px 12px;cursor:pointer}
+button:hover{border-color:var(--muted)}
+button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--signal);outline-offset:2px}
+button.on{border-color:var(--signal);color:var(--signal)}
+button.go{background:var(--signal);border-color:var(--signal);color:#1a1206;font-weight:500;font-size:15px;padding:10px 16px;width:100%}
+button.go:disabled{opacity:.45;cursor:not-allowed}
+.presets{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.presets button{font-size:13px;padding:6px 4px}
+.form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:12px}
+label,.lbl{display:flex;flex-direction:column;gap:3px;font-size:12px;color:var(--muted)}
+select,input[type=number]{font-family:var(--body);font-size:14px;color:var(--text);background:var(--ink);border:1px solid #3a4658;border-radius:5px;padding:6px;width:100%}
+.slider{grid-column:span 2}
+.slider .top{display:flex;justify-content:space-between;gap:8px}
+.slider output{font-family:var(--mono);color:var(--text);font-variant-numeric:tabular-nums}
+input[type=range]{width:100%;accent-color:var(--signal)}
+.check{flex-direction:row;align-items:center;gap:8px;font-size:13px;color:var(--text);grid-column:span 2}
+.check input{accent-color:var(--signal);width:16px;height:16px}
+.plan{margin-top:12px;padding:10px;border:1px dashed #3a4658;border-radius:6px;font-size:13px}
+.plan .big{font-family:var(--mono);font-size:16px;color:var(--text)}
+.bar{position:relative;height:8px;background:var(--ink);border-radius:4px;margin:8px 0 4px;overflow:hidden}
+.bar i{position:absolute;top:0;bottom:0;border-radius:4px}
+.warn{color:var(--signal)} .bad{color:var(--red)} .ok{color:var(--green)}
+#rep{width:100%;height:190px;display:block;background:var(--ink);border-radius:6px}
+.legend{display:flex;flex-wrap:wrap;gap:14px;font-size:12px;color:var(--muted);margin-top:6px}
+.legend span::before{content:"";display:inline-block;width:14px;height:3px;margin-right:6px;vertical-align:middle;background:var(--c)}
+.legend.sq span::before{height:10px;width:10px;border-radius:2px;vertical-align:-1px}
+.status{font-size:13px;margin-top:6px;min-height:20px}
+#log{list-style:none;margin:0;padding:0;font-family:var(--mono);font-size:12.5px;max-height:220px;overflow:auto}
+#log li{padding:5px 0;border-bottom:1px solid var(--line)}
+#log li:last-child{border-bottom:0}
+.rules{font-size:13px;color:var(--muted);margin:0;padding-left:18px}
+.rules li{margin:3px 0}
+.stack{display:flex;flex-direction:column;gap:16px}
+.worldline{font-size:13px;color:var(--muted);margin-top:8px;display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center}
+.worldline a{color:var(--signal)}
+.sec{border-top:1px solid var(--line);padding-top:12px}
+.sec:first-child{border-top:0;padding-top:0}
+.sechead{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.sechead label{flex-direction:row;align-items:center;gap:6px;font-size:13px;color:var(--text)}
+.sechead input{accent-color:var(--signal);width:18px;height:18px}
+.note{font-size:12.5px;color:var(--muted);margin:4px 0 0}
+.sec.off .form{opacity:.4}
+.secs{display:flex;flex-direction:column;gap:14px}
+.seedrow{display:flex;gap:6px}
+.seedrow button{white-space:nowrap}
+#genstate{font-size:12.5px;color:var(--muted);min-height:18px}
+[hidden]{display:none!important}
+@media(prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+  <div class="brand">
+    <h1>Signal <span>Search</span></h1>
+    <nav aria-label="Views"><a href="#" id="navPlay" class="on">Play</a><a href="#world" id="navWorld">World settings</a></nav>
+  </div>
+  <div class="stats" id="playStats">
+    <div class="chip">Turn <b id="sTurn">0</b>/10</div>
+    <div class="chip">Reserve <b id="sRes">60</b></div>
+    <div class="chip">Readings <b id="sObs">0</b></div>
+    <div class="chip">Deepest reading <b id="sDeep">none</b></div>
+  </div>
+</header>
+
+<!-- PLAY VIEW -->
+<div class="grid" id="viewPlay">
+  <div class="stack">
+    <div class="card">
+      <canvas id="map" class="map" width="640" height="640" aria-label="Belief map. Tap or drag to plot a signal path."></canvas>
+      <p class="hint">Tap to plot a straight line from the nearest node, or drag to draw. Clear areas are mapped; dark areas are fog. Dots are readings, amber rings are nodes you can launch from.</p>
+      <div class="row">
+        <button id="bClear">Clear path</button>
+        <button id="bTruth" aria-pressed="false">Reveal truth</button>
+        <button id="bNew">New world</button>
+      </div>
+      <div class="worldline"><span id="worldDesc"></span><a href="#world">Edit world</a></div>
+    </div>
+    <div class="card">
+      <h2>Last report</h2>
+      <canvas id="rep" width="720" height="380"></canvas>
+      <div class="legend"><span style="--c:var(--cyan)">height</span><span style="--c:var(--coral)">slope along heading</span><span style="--c:var(--signal)">energy left</span></div>
+      <div class="status" id="repStatus">No runs yet. Commit a node to get your first report.</div>
+    </div>
+  </div>
+
+  <div class="stack">
+    <div class="card">
+      <h2>Node loadout</h2>
+      <div class="presets" id="presets"></div>
+      <div class="form">
+        <label for="fMove">After the path
+          <select id="fMove">
+            <option value="rail">Stop at end</option>
+            <option value="descend">Descend (greedy)</option>
+            <option value="roll">Roll (momentum)</option>
+            <option value="contour">Walk contour</option>
+            <option value="split">Split into 3</option>
+          </select></label>
+        <label for="fSensor">Sensor
+          <select id="fSensor">
+            <option value="end">Endpoint only</option>
+            <option value="trace">Trace (+15% travel)</option>
+          </select></label>
+        <label for="fReport">Reporting
+          <select id="fReport">
+            <option value="burst">Burst at end</option>
+            <option value="stream">Live stream (+25% travel)</option>
+          </select></label>
+        <label for="fStall">When too steep
+          <select id="fStall">
+            <option value="stop">Stop</option>
+            <option value="slide">Slide downhill</option>
+            <option value="sidestep">Sidestep</option>
+          </select></label>
+        <div class="slider"><div class="top"><label for="fEnergy">Energy committed</label><output id="oEnergy">6</output></div>
+          <input id="fEnergy" type="range" min="1" max="12" step="1" value="6"></div>
+        <div class="slider"><div class="top"><label for="fScan">Share spent on end scan</label><output id="oScan">0%</output></div>
+          <input id="fScan" type="range" min="0" max="60" step="10" value="0"></div>
+      </div>
+      <div class="plan" id="plan"></div>
+      <div class="row"><button class="go" id="bGo">Commit node</button></div>
+    </div>
+    <div class="card">
+      <h2>Run log</h2>
+      <ul id="log"><li>Waiting for first commit.</li></ul>
+    </div>
+    <div class="card">
+      <h2>Rules in this build</h2>
+      <ul class="rules" id="rulesList"></ul>
+    </div>
+  </div>
+</div>
+
+<!-- WORLD VIEW -->
+<div class="grid" id="viewWorld" hidden>
+  <div class="stack">
+    <div class="card">
+      <h2>Preview (true terrain)</h2>
+      <canvas id="wmap" class="map" width="640" height="640" aria-label="Preview of the generated terrain"></canvas>
+      <div class="row">
+        <label class="check" style="grid-column:auto"><input type="checkbox" id="ovStall" checked> Stall zones</label>
+        <label class="check" style="grid-column:auto"><input type="checkbox" id="ovRoute" checked> Route to deepest point</label>
+      </div>
+      <div class="legend sq"><span style="--c:#e5615a">too steep</span><span style="--c:#afa9ec">nearly flat</span><span style="--c:#f2a541">base and route</span><span style="--c:#ffffff">deepest point</span></div>
+      <div class="stats" id="wstats" style="margin-top:10px"></div>
+      <div id="genstate"></div>
+      <div class="row">
+        <button class="go" id="bUse">Start a game on this world</button>
+      </div>
+      <div class="row">
+        <button id="bReset">Reset to Hybrid defaults</button>
+      </div>
+    </div>
+  </div>
+  <div class="stack">
+    <div class="card"><div class="secs" id="wform"></div></div>
+  </div>
+</div>
+</div>
+
+<script>
+"use strict";
+const STEP=.004, ELL=.075, NOISE=.003, G=33, MAXOBS=480, NG=160;
+const $=id=>document.getElementById(id);
+const clamp=v=>Math.min(.995,Math.max(.005,v));
+function mb(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+
+/* ---------- noise and terrain building blocks ---------- */
+function perlin(seed){const r=mb(seed),P=[...Array(256).keys()];for(let i=255;i>0;i--){const j=Math.floor(r()*(i+1));[P[i],P[j]]=[P[j],P[i]]}const p=new Uint8Array(512);for(let i=0;i<512;i++)p[i]=P[i&255];
+  const g=(h,x,y)=>{switch(h&7){case 0:return x+y;case 1:return x-y;case 2:return -x+y;case 3:return -x-y;case 4:return x;case 5:return -x;case 6:return y;default:return -y}};
+  const f=t=>t*t*t*(t*(t*6-15)+10),l=(a,b,t)=>a+t*(b-a);
+  return(x,y)=>{const fx=Math.floor(x),fy=Math.floor(y),X=fx&255,Y=fy&255;x-=fx;y-=fy;const u=f(x),v=f(y),A=p[X]+Y,B=p[X+1]+Y;
+    return l(l(g(p[A],x,y),g(p[B],x-1,y),u),l(g(p[A+1],x,y-1),g(p[B+1],x-1,y-1),u),v)}}
+function fbm(n,x,y,o,f,pe){let s=0,a=1,t=0;for(let i=0;i<o;i++){s+=a*n(x*f+i*17.3,y*f+i*9.1);t+=a;a*=pe;f*=2}return s/t}
+function ridged(n,x,y,o,f){let s=0,a=.5;for(let i=0;i<o;i++){let v=1-Math.abs(n(x*f+i*31.7,y*f+i*7.7));v*=v;s+=v*a;a*=.5;f*=2}return s}
+function warp(n2,n3,x,y,k){if(!k)return[x,y];return[x+k*fbm(n2,x,y,3,2,.5),y+k*fbm(n3,x+5.2,y+1.3,3,2,.5)]}
+const TF={
+  rosen:(u,v)=>{const X=1.6*u,Y=1.6*v+.6;return Math.log(1+(1-X)**2+6*(Y-X*X)**2)},
+  rastr:(u,v)=>{const X=2.6*u,Y=2.6*v;return 20+X*X-10*Math.cos(2*Math.PI*X)+Y*Y-10*Math.cos(2*Math.PI*Y)},
+  saddle:(u,v)=>Math.tanh(2*(u*u-v*v))*.8+.2*Math.tanh(6*(u*u+v*v)-3),
+  ackley:(u,v)=>{const X=3*u,Y=3*v;return-20*Math.exp(-.2*Math.sqrt(.5*(X*X+Y*Y)))-Math.exp(.5*(Math.cos(2*Math.PI*X)+Math.cos(2*Math.PI*Y)))+Math.E+20}};
+function gridF(fn){const H=new Float32Array(NG*NG);for(let j=0;j<NG;j++)for(let i=0;i<NG;i++)H[j*NG+i]=fn(i/(NG-1),j/(NG-1));return H}
+function n01(H){let lo=1e9,hi=-1e9;for(const v of H){if(v<lo)lo=v;if(v>hi)hi=v}const d=hi-lo||1;return H.map(v=>(v-lo)/d)}
+function normTo(H,R){let lo=1e9,hi=-1e9;for(const v of H){if(v<lo)lo=v;if(v>hi)hi=v}const d=hi-lo;for(let k=0;k<H.length;k++)H[k]=d<1e-9?0:-R+2*R*(H[k]-lo)/d;return H}
+function patch(fn,cx,cy,R,rot){const c=Math.cos(rot),s=Math.sin(rot);return n01(gridF((x,y)=>{const u=(x-cx)/R,v=(y-cy)/R;const uu=u*c-v*s,vv=u*s+v*c;return fn(Math.max(-1.2,Math.min(1.2,uu)),Math.max(-1.2,Math.min(1.2,vv)))}))}
+function erode(H,r,drops,rate){const N=NG;
+  const L=(x,y)=>{const i=Math.min(N-2,Math.floor(x)),j=Math.min(N-2,Math.floor(y)),u=x-i,v=y-j,a=H[j*N+i],b=H[j*N+i+1],c=H[(j+1)*N+i],d=H[(j+1)*N+i+1];return{h:a*(1-u)*(1-v)+b*u*(1-v)+c*(1-u)*v+d*u*v,gx:(b-a)*(1-v)+(d-c)*v,gy:(c-a)*(1-u)+(d-b)*u,i,j,u,v}};
+  const add=(q,amt)=>{H[q.j*N+q.i]+=amt*(1-q.u)*(1-q.v);H[q.j*N+q.i+1]+=amt*q.u*(1-q.v);H[(q.j+1)*N+q.i]+=amt*(1-q.u)*q.v;H[(q.j+1)*N+q.i+1]+=amt*q.u*q.v};
+  for(let d=0;d<drops;d++){let x=r()*(N-2),y=r()*(N-2),dx=0,dy=0,sp=1,w=1,sed=0;
+    for(let l=0;l<35;l++){const q=L(x,y);dx=dx*.05-q.gx*.95;dy=dy*.05-q.gy*.95;const m=Math.hypot(dx,dy);if(m<1e-6)break;dx/=m;dy/=m;const nx=x+dx,ny=y+dy;if(nx<0||ny<0||nx>=N-1||ny>=N-1)break;
+      const dh=L(nx,ny).h-q.h,cap=Math.max(-dh*sp*w*4,.01);
+      if(sed>cap||dh>0){const a=dh>0?Math.min(dh,sed):(sed-cap)*.3;sed-=a;add(q,a)}else{const a=Math.min((cap-sed)*rate,-dh);sed+=a;add(q,-a)}
+      sp=Math.sqrt(Math.max(0,sp*sp+(-dh)*4));w*=.99;x=nx;y=ny}}
+  return H}
+
+/* ---------- world settings ---------- */
+const LAYERS=["noise","ridges","patches","blobs","erosion"];
+const OFF={noise:{on:false,w:.9,freq:2.2,oct:4,rough:.45},ridges:{on:false,w:.45,freq:2,oct:3,warp:.25,invert:false},
+  patches:{on:false,w:.5,size:.15,rosen:false,rastr:true,saddle:false,ackley:true},blobs:{on:false,w:1,large:9,small:12,pit:55},erosion:{on:false,drops:30000,rate:.3}};
+const clone=o=>JSON.parse(JSON.stringify(o));
+function mk(o,relief){const r=clone(OFF);for(const k in o)Object.assign(r[k],o[k]);r.relief=relief;return r}
+const PRESETS={
+  hybrid:mk({noise:{on:true},ridges:{on:true},patches:{on:true}},.45),
+  blobs:mk({blobs:{on:true}},1.2),
+  noise:mk({noise:{on:true,w:1,freq:3,oct:5,rough:.5}},.45),
+  ridged:mk({ridges:{on:true,w:1,freq:2.2,oct:4,warp:.35},noise:{on:true,w:.35,freq:2,oct:3,rough:.5}},.3),
+  regions:mk({patches:{on:true,w:1.4,size:.24,rosen:true,rastr:true,saddle:true,ackley:true},noise:{on:true,w:.12,freq:4,oct:3,rough:.5}},.45),
+  eroded:mk({noise:{on:true,w:1,freq:2.5,oct:5,rough:.5},ridges:{on:true,w:.5,freq:1.5,oct:3,warp:0},erosion:{on:true}},.4)};
+const PRESET_NAMES={hybrid:"Hybrid (default)",blobs:"Blobs (original)",noise:"Layered noise",ridged:"Ridged + warped",regions:"Test-function regions",eroded:"Eroded noise",custom:"Custom"};
+const DEF={preset:"hybrid",seed:20261110,base:"corner",...clone(PRESETS.hybrid),
+  rules:{flatten:true,flatR:.05,minDist:true,dist:.4,route:true},physics:{stall:4.5,climb:10}};
+const KEY="signal-descent-world-v1";
+let S=clone(DEF);
+try{const s=JSON.parse(localStorage.getItem(KEY)||"null");if(s&&s.v!==2)throw 0;if(s&&s.noise&&s.physics)S=Object.assign(clone(DEF),s)}catch(e){}
+const getP=(o,p)=>p.split(".").reduce((a,k)=>a[k],o);
+const setP=(o,p,v)=>{const ks=p.split("."),l=ks.pop();ks.reduce((a,k)=>a[k],o)[l]=v};
+
+/* ---------- world generation ---------- */
+function generate(S,seed){
+  const r=mb(seed),n=perlin(seed),n2=perlin(seed+1),n3=perlin(seed+2);
+  let H=new Float32Array(NG*NG);
+  const corner={x:.1,y:.9};
+  let B=null;
+  if(S.blobs.on){B=[];for(let i=0;i<S.blobs.large;i++)B.push([.1+.8*r(),.1+.8*r(),(r()*100<S.blobs.pit?-1:1)*(.45+.75*r()),.07+.09*r()]);
+    for(let i=0;i<S.blobs.small;i++)B.push([.05+.9*r(),.05+.9*r(),(r()*100<S.blobs.pit?-1:1)*(.12+.22*r()),.022+.025*r()])}
+  const P=[];
+  if(S.patches.on){for(const k of["rosen","rastr","saddle","ackley"]){if(!S.patches[k])continue;let cx=.5,cy=.5;
+    for(let t=0;t<60;t++){cx=.15+.7*r();cy=.15+.7*r();if(Math.hypot(cx-corner.x,cy-corner.y)>.3&&P.every(p=>Math.hypot(p.cx-cx,p.cy-cy)>S.patches.size*1.6))break}
+    P.push({k,cx,cy,G:patch(TF[k],cx,cy,S.patches.size,r()*6.283)})}}
+  const sg=S.patches.size*.8;
+  for(let j=0;j<NG;j++)for(let i=0;i<NG;i++){const x=i/(NG-1),y=j/(NG-1),k=j*NG+i;let v=0;
+    if(S.noise.on)v+=S.noise.w*2*fbm(n,x,y,S.noise.oct,S.noise.freq,S.noise.rough);
+    if(S.ridges.on){const[wx,wy]=warp(n2,n3,x,y,S.ridges.warp),rv=ridged(n,wx+3.7,wy+1.1,S.ridges.oct,S.ridges.freq);v+=S.ridges.w*1.5*(S.ridges.invert?-rv:rv)}
+    if(B)for(const[a,b,A,s]of B)v+=S.blobs.w*A*Math.exp(-((x-a)**2+(y-b)**2)/(2*s*s));
+    for(const p of P){const f=Math.exp(-((x-p.cx)**2+(y-p.cy)**2)/(2*sg*sg));v+=S.patches.w*f*(p.G[k]-(p.k==="saddle"?.5:1))}
+    H[k]=v}
+  if(S.erosion.on){H=n01(H).map(v=>v*14);erode(H,mb(seed+7),S.erosion.drops,S.erosion.rate)}
+  normTo(H,S.relief);
+  const d=1/(NG-1),slopeAt=k=>{const i=k%NG,j=(k-i)/NG,i0=Math.max(0,i-1),i1=Math.min(NG-1,i+1),j0=Math.max(0,j-1),j1=Math.min(NG-1,j+1);
+    return Math.hypot((H[j*NG+i1]-H[j*NG+i0])/((i1-i0)*d),(H[j1*NG+i]-H[j0*NG+i])/((j1-j0)*d))};
+  let base=corner;
+  if(S.base==="random"){let best=1e9;for(let t=0;t<60;t++){const x=.08+.84*r(),y=.08+.84*r(),k=Math.round(y*(NG-1))*NG+Math.round(x*(NG-1)),s=slopeAt(k);if(s<best){best=s;base={x,y}}}}
+  if(S.rules.flatten){const R=S.rules.flatR;let m=0,c=0;
+    for(let j=0;j<NG;j++)for(let i=0;i<NG;i++){const dd=Math.hypot(i*d-base.x,j*d-base.y);if(dd<R*1.4){m+=H[j*NG+i];c++}}m/=c||1;
+    for(let j=0;j<NG;j++)for(let i=0;i<NG;i++){const dd=Math.hypot(i*d-base.x,j*d-base.y);if(dd<R*4){const w=Math.exp(-(dd*dd)/(2*R*R));H[j*NG+i]=H[j*NG+i]*(1-w)+m*w}}}
+  const stall=S.physics.stall,cls=new Uint8Array(NG*NG);let steep=0,flat=0,pits=0,mk_=0,tot=0;
+  for(let k=0;k<NG*NG;k++){const s=slopeAt(k);if(s>stall){cls[k]=1;steep++}else if(s<.12){cls[k]=2;flat++}tot++;if(H[k]<H[mk_])mk_=k}
+  for(let j=1;j<NG-1;j++)for(let i=1;i<NG-1;i++){const k=j*NG+i;let m=true;for(let b=-1;b<=1&&m;b++)for(let a=-1;a<=1;a++)if((a||b)&&H[k+b*NG+a]<=H[k]){m=false;break}if(m)pits++}
+  const min={x:(mk_%NG)*d,y:Math.floor(mk_/NG)*d,h:H[mk_]};
+  const bk=Math.round(base.y*(NG-1))*NG+Math.round(base.x*(NG-1)),par=new Int32Array(NG*NG).fill(-1),Q=new Int32Array(NG*NG);let qh=0,qt=0;
+  par[bk]=bk;Q[qt++]=bk;
+  while(qh<qt){const c=Q[qh++];if(c===mk_)break;const ci=c%NG,cj=(c-ci)/NG;
+    for(let b=-1;b<=1;b++)for(let a=-1;a<=1;a++){if(!a&&!b)continue;const ni=ci+a,nj=cj+b;if(ni<0||nj<0||ni>=NG||nj>=NG)continue;const nk=nj*NG+ni;if(par[nk]>=0)continue;
+      if((H[nk]-H[c])/(d*Math.hypot(a,b))>stall)continue;par[nk]=c;Q[qt++]=nk}}
+  let route=null;if(par[mk_]>=0){route=[];let c=mk_;while(c!==bk){route.push(c);c=par[c]}route.push(bk);route.reverse()}
+  return{H,cls,base,min,route,seed,relief:S.relief,physics:clone(S.physics),preset:S.preset,
+    stats:{steep:steep/tot*100,flat:flat/tot*100,pits},dist:Math.hypot(min.x-base.x,min.y-base.y)};
+}
+function buildWorld(S,seed){
+  let w;const s0=seed??S.seed;
+  for(let t=0;t<12;t++){w=generate(S,s0+t);w.tries=t;
+    const ok=(!S.rules.minDist||w.dist>=S.rules.dist)&&(!S.rules.route||w.route);if(ok){w.ok=true;return w}}
+  w.ok=false;return w;
+}
+
+/* ---------- game state ---------- */
+let W,obs,runs,anchors,turn,reserve,path,showTruth,belief,lastRun,anim=null,rng,S2=.36,PW=null;
+function cub(p0,p1,p2,p3,t){return p1+.5*t*(p2-p0+t*(2*p0-5*p1+4*p2-p3+t*(3*(p1-p2)+p3-p0)))}
+function h(x,y){const H=W.H,g=NG-1,fx=Math.min(g,Math.max(0,x*g)),fy=Math.min(g,Math.max(0,y*g)),i=Math.min(g-1,Math.floor(fx)),j=Math.min(g-1,Math.floor(fy)),tx=fx-i,ty=fy-j;
+  const row=b=>{const r=Math.min(g,Math.max(0,b))*NG;return cub(H[r+Math.max(0,i-1)],H[r+i],H[r+i+1],H[r+Math.min(g,i+2)],tx)};
+  return cub(row(j-1),row(j),row(j+1),row(j+2),ty)}
+function grad(x,y){const e=.002;return[(h(x+e,y)-h(x-e,y))/(2*e),(h(x,y+e)-h(x,y-e))/(2*e)]}
+function gauss(){let u=0,v=0;while(!u)u=rng();while(!v)v=rng();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v)}
+
+function addObs(x,y){
+  const z=h(x,y)+gauss()*.02;
+  for(const o of obs){if(Math.hypot(o.x-x,o.y-y)<.016){o.z=(o.z*o.n+z)/(o.n+1);o.n++;return}}
+  if(obs.length<MAXOBS)obs.push({x,y,z,n:1});
+}
+function fitBelief(){
+  const n=obs.length,mean=new Float64Array(G*G),sd=new Float64Array(G*G);
+  if(!n){mean.fill(0);sd.fill(Math.sqrt(S2));belief={mean,sd};return}
+  let m0=0;for(const o of obs)m0+=o.z;m0/=n;
+  const k=(ax,ay,bx,by)=>{const dx=ax-bx,dy=ay-by;return S2*Math.exp(-(dx*dx+dy*dy)/(2*ELL*ELL))};
+  const L=new Float64Array(n*n);
+  for(let i=0;i<n;i++)for(let j=0;j<=i;j++){
+    let s=k(obs[i].x,obs[i].y,obs[j].x,obs[j].y)+(i===j?NOISE:0);
+    for(let q=0;q<j;q++)s-=L[i*n+q]*L[j*n+q];
+    L[i*n+j]=i===j?Math.sqrt(Math.max(s,1e-9)):s/L[j*n+j];
+  }
+  const y=new Float64Array(n);
+  for(let i=0;i<n;i++){let s=obs[i].z-m0;for(let q=0;q<i;q++)s-=L[i*n+q]*y[q];y[i]=s/L[i*n+i]}
+  const al=new Float64Array(n);
+  for(let i=n-1;i>=0;i--){let s=y[i];for(let q=i+1;q<n;q++)s-=L[q*n+i]*al[q];al[i]=s/L[i*n+i]}
+  const kv=new Float64Array(n),v=new Float64Array(n);
+  for(let gj=0;gj<G;gj++)for(let gi=0;gi<G;gi++){
+    const px=gi/(G-1),py=gj/(G-1);let mu=m0;
+    for(let i=0;i<n;i++){kv[i]=k(px,py,obs[i].x,obs[i].y);mu+=kv[i]*al[i]}
+    let ss=0;for(let i=0;i<n;i++){let s=kv[i];for(let q=0;q<i;q++)s-=L[i*n+q]*v[q];v[i]=s/L[i*n+i];ss+=v[i]*v[i]}
+    mean[gj*G+gi]=mu;sd[gj*G+gi]=Math.sqrt(Math.max(S2-ss,1e-6));
+  }
+  belief={mean,sd};
+}
+function interp(a,x,y){const g=G-1,fx=Math.min(g-1e-6,Math.max(0,x*g)),fy=Math.min(g-1e-6,Math.max(0,y*g)),i=Math.floor(fx),j=Math.floor(fy),tx=fx-i,ty=fy-j;
+  return a[j*G+i]*(1-tx)*(1-ty)+a[j*G+i+1]*tx*(1-ty)+a[(j+1)*G+i]*(1-tx)*ty+a[(j+1)*G+i+1]*tx*ty}
+
+function cfg(){return{move:$("fMove").value,sensor:$("fSensor").value,report:$("fReport").value,stall:$("fStall").value,energy:+$("fEnergy").value,scan:+$("fScan").value}}
+function mult(c){return 1+(c.sensor==="trace"?.15:0)+(c.report==="stream"?.25:0)}
+
+function runAgent(x,y,wps,E,c,depth,s0){
+  const MAXC=W.physics.stall,CL=W.physics.climb,m=mult(c),pts=[{x,y,s:s0,h:h(x,y),sl:0,E}];
+  let s=s0,wi=0,mode=wps.length?"rail":c.move,status="",side=0,vx=0,vy=0,auto=0,slid=false,hx=1,hy=0,ax=x,ay=y;
+  if(mode==="split")mode="rail";
+  for(let it=0;it<4000;it++){
+    let nx,ny;
+    if(mode==="rail"){
+      if(wi>=wps.length){
+        if(c.move==="split"&&depth===0){status="split";break}
+        if(["descend","roll","contour"].includes(c.move)&&depth===0){mode=c.move;ax=x;ay=y;continue}
+        status="arrived";break;
+      }
+      const t=wps[wi],dx=t.x-x,dy=t.y-y,d=Math.hypot(dx,dy);
+      if(d<.006){wi++;continue}
+      const ux=dx/d,uy=dy/d,st=Math.min(STEP,d);
+      nx=clamp(x+ux*st);ny=clamp(y+uy*st);
+      if((h(nx,ny)-h(x,y))/st>MAXC){
+        if(c.stall==="stop"){status="stalled";break}
+        if(c.stall==="slide"){mode="descend";slid=true;ax=x;ay=y;continue}
+        side++;if(side>60){status="stalled";break}
+        let best=null;
+        for(const a of[1.05,-1.05,1.57,-1.57]){const co=Math.cos(a),sn=Math.sin(a),rx=ux*co-uy*sn,ry=ux*sn+uy*co,px=clamp(x+rx*STEP),py=clamp(y+ry*STEP),ss=(h(px,py)-h(x,y))/STEP;if(ss<=MAXC&&(!best||ss<best.ss))best={px,py,ss}}
+        if(!best){status="stalled";break}
+        nx=best.px;ny=best.py;
+      }else side=Math.max(0,side-.25);
+      hx=ux;hy=uy;
+    }else{
+      auto++;if(auto>700){status="settled";break}
+      const[gx,gy]=grad(x,y);
+      if(mode==="descend"){const g=Math.hypot(gx,gy);if(g<.12){status="settled";break}nx=x-gx/g*STEP;ny=y-gy/g*STEP}
+      else if(mode==="roll"){vx=.95*vx-.00012*gx;vy=.95*vy-.00012*gy;let v=Math.hypot(vx,vy);if(v>.006){vx*=.006/v;vy*=.006/v;v=.006}if(auto>30&&v<.0004){status="settled";break}nx=x+vx;ny=y+vy}
+      else{const g=Math.hypot(gx,gy);if(g<.05){status="settled";break}nx=x-gy/g*STEP;ny=y+gx/g*STEP}
+      nx=clamp(nx);ny=clamp(ny);
+      const dd=Math.hypot(nx-x,ny-y)||1e-6;
+      if((h(nx,ny)-h(x,y))/dd>MAXC){status="stalled";break}
+    }
+    const ds=Math.hypot(nx-x,ny-y)||1e-6,dh=h(nx,ny)-h(x,y);
+    E-=ds*2*m+Math.max(0,dh)*CL;
+    if(E<=0){E=0;status="dead";break}
+    s+=ds;x=nx;y=ny;pts.push({x,y,s,h:h(x,y),sl:dh/ds,E});
+    if(mode==="contour"&&auto>40&&Math.hypot(x-ax,y-ay)<.008){status="loop";break}
+  }
+  if(!status)status="settled";
+  const ag={pts,status,slid,depth,E};
+  if(status==="split"){
+    const out=[ag];
+    for(const off of[-.9,0,.9]){const co=Math.cos(off),sn=Math.sin(off),rx=hx*co-hy*sn,ry=hx*sn+hy*co;
+      out.push(...runAgent(x,y,[{x:clamp(x+.28*rx),y:clamp(y+.28*ry)}],E/3,c,1,s))}
+    return out;
+  }
+  return[ag];
+}
+function resample(p,step){const out=[p[0]];for(let i=1;i<p.length;i++){const a=p[i-1],b=p[i],d=Math.hypot(b.x-a.x,b.y-a.y),n=Math.max(1,Math.ceil(d/step));for(let k=1;k<=n;k++)out.push({x:a.x+(b.x-a.x)*k/n,y:a.y+(b.y-a.y)*k/n})}return out}
+const STAT={arrived:["reached end","ok"],stalled:["stalled on a steep slope","warn"],settled:["came to rest","ok"],loop:["closed its contour loop","ok"],dead:["ran out of energy","bad"],split:["forked into 3","ok"]};
+
+function updatePlan(){
+  const c=cfg(),scanE=c.energy*c.scan/100,travel=c.energy-scanE,el=$("plan"),MAXC=W.physics.stall,CL=W.physics.climb;
+  $("oEnergy").textContent=c.energy;$("oScan").textContent=c.scan+"%";
+  $("bGo").disabled=!path||turn>=10||c.energy>reserve;
+  if(turn>=10){el.innerHTML='<span class="warn">All 10 turns used.</span> Reveal truth to compare, or start a new world.';return}
+  if(!path){el.innerHTML="Plot a path on the map to see a cost estimate from your current map.";return}
+  const P=resample(path,.01),m=mult(c);let cost=0,L=0,sdS=0,steep=-1;
+  for(let i=1;i<P.length;i++){const a=P[i-1],b=P[i],ds=Math.hypot(b.x-a.x,b.y-a.y);if(!ds)continue;const ma=interp(belief.mean,a.x,a.y),mb_=interp(belief.mean,b.x,b.y),dh=mb_-ma;
+    cost+=ds*2*m+Math.max(0,dh)*CL;sdS+=ds*(interp(belief.sd,a.x,a.y)+interp(belief.sd,b.x,b.y))/2;L+=ds;if(dh/ds>MAXC*.8&&steep<0)steep=L}
+  const unc=L?CL*(sdS/L)*Math.sqrt(Math.max(1,L/ELL))*.6:0,max=Math.max(travel,cost+unc)*1.05||1;
+  let risk;
+  if(cost-unc>travel)risk='<span class="bad">Very likely to run out before the end.</span>';
+  else if(cost+unc>travel)risk='<span class="warn">Might run out. The estimate overlaps your budget.</span>';
+  else risk='<span class="ok">Should make it, if the map is right.</span>';
+  const autoTxt={rail:"",descend:" Then descends. That part's cost isn't estimated.",roll:" Then rolls. That part's cost isn't estimated.",contour:" Then walks a contour, which costs little climbing.",split:" Then splits the remaining energy 3 ways."}[c.move];
+  el.innerHTML=`<div class="big">Path cost ≈ ${cost.toFixed(1)} ± ${unc.toFixed(1)}</div>
+  <div>Travel energy ${travel.toFixed(1)}${scanE?` · scan ${scanE.toFixed(1)}`:""} · path length ${L.toFixed(2)}</div>
+  <div class="bar" aria-hidden="true"><i style="left:${Math.max(0,cost-unc)/max*100}%;width:${(2*unc)/max*100}%;background:rgba(92,200,214,.35)"></i><i style="left:${cost/max*100}%;width:2px;background:var(--cyan)"></i><i style="left:${Math.min(travel/max*100,99.6)}%;width:2px;background:var(--signal)"></i></div>
+  <div>${risk}${steep>=0?` <span class="warn">Map shows a steep climb about ${Math.round(steep/L*100)}% along.</span>`:""}${autoTxt}</div>`;
+  if(c.energy>reserve)el.innerHTML+='<div class="bad">Not enough reserve for this much energy.</div>';
+}
+
+function commit(){
+  const c=cfg();if(!path||turn>=10||c.energy>reserve)return;
+  reserve-=c.energy;turn++;
+  const scanE=c.energy*c.scan/100,agents=runAgent(path[0].x,path[0].y,path.slice(1),c.energy-scanE,c,0,0);
+  const leaves=agents.filter(a=>a.status!=="split"),scanEach=scanE/Math.max(1,leaves.length);
+  for(const a of agents){a.known=a.status!=="dead"||c.report==="stream";a.scanR=0;
+    if(a.known&&a.status!=="split"&&a.status!=="dead"&&scanEach>0)a.scanR=Math.min(.2,.03+.025*scanEach)}
+  lastRun={turn,c,agents,path:path.slice(),scanE};runs.push(lastRun);path=null;
+  const finish=()=>{anim=null;applyRun(lastRun);render();renderReport();updatePlan();updateStats()};
+  if(matchMedia("(prefers-reduced-motion: reduce)").matches){finish();return}
+  const t0=performance.now();anim={t:0};
+  const tick=now=>{anim.t=Math.min(1,(now-t0)/1100);render();if(anim.t<1)requestAnimationFrame(tick);else finish()};
+  requestAnimationFrame(tick);
+}
+function applyRun(r){
+  for(const a of r.agents){
+    if(!a.known)continue;
+    const last=a.pts[a.pts.length-1];
+    if(r.c.sensor==="trace"){let next=0;for(const p of a.pts){if(p.s>=next){addObs(p.x,p.y);next=p.s+.02}}}
+    addObs(last.x,last.y);
+    if(a.scanR){const R=a.scanR;for(let i=0;i<8;i++){const t=i/8*Math.PI*2;addObs(clamp(last.x+Math.cos(t)*R/2),clamp(last.y+Math.sin(t)*R/2))}
+      for(let i=0;i<12;i++){const t=(i+.5)/12*Math.PI*2;addObs(clamp(last.x+Math.cos(t)*R),clamp(last.y+Math.sin(t)*R))}}
+    if(a.status!=="dead"&&a.status!=="split")anchors.push({x:last.x,y:last.y});
+  }
+  fitBelief();
+  const names={rail:"Path",descend:"Descend",roll:"Roll",contour:"Contour",split:"Split"};
+  const parts=r.agents.filter(a=>a.status!=="split").map(a=>a.known?`${STAT[a.status][0]}${a.slid?" (slid)":""}, ${a.E.toFixed(1)} left`:"signal lost");
+  const li=document.createElement("li");
+  li.textContent=`T${r.turn} · ${names[r.c.move]}/${r.c.sensor==="trace"?"Trace":"End"}/${r.c.report==="stream"?"Stream":"Burst"} · E${r.c.energy} → ${parts.join("; ")}`;
+  const log=$("log");if(runs.length===1)log.innerHTML="";log.prepend(li);
+}
+
+/* ---------- drawing ---------- */
+function ramp(z,R){const t=Math.max(0,Math.min(1,(z+R*1.08)/(2.16*R)));const S_=[[0,[13,40,66]],[.45,[38,104,118]],[.7,[96,150,128]],[1,[214,192,134]]];
+  for(let i=1;i<S_.length;i++)if(t<=S_[i][0]){const a=S_[i-1],b=S_[i],u=(t-a[0])/(b[0]-a[0]);return a[1].map((v,k)=>v+(b[1][k]-v)*u)}return S_[3][1]}
+let off=null;
+function buildImage(){
+  const R=NG;off=off||document.createElement("canvas");off.width=off.height=R;
+  const ctx=off.getContext("2d"),img=ctx.createImageData(R,R),Z=new Float64Array(R*R),F=new Float64Array(R*R),band=W.relief/6;
+  for(let j=0;j<R;j++)for(let i=0;i<R;i++){const x=i/(R-1),y=j/(R-1),k=j*R+i;
+    if(showTruth){Z[k]=W.H[k];F[k]=0}else{Z[k]=interp(belief.mean,x,y);F[k]=Math.pow(Math.min(1,interp(belief.sd,x,y)/Math.sqrt(S2)),1.4)}}
+  const fog=[26,33,44];
+  for(let j=0;j<R;j++)for(let i=0;i<R;i++){const k=j*R+i,b=Math.floor(Z[k]/band);
+    let col=ramp(Z[k],W.relief);
+    if((i<R-1&&Math.floor(Z[k+1]/band)!==b)||(j<R-1&&Math.floor(Z[k+R]/band)!==b))col=col.map(v=>v*.62);
+    const f=F[k]*.93;col=col.map((v,q)=>v*(1-f)+fog[q]*f);
+    img.data[k*4]=col[0];img.data[k*4+1]=col[1];img.data[k*4+2]=col[2];img.data[k*4+3]=255}
+  ctx.putImageData(img,0,0);
+}
+function line(c,p,S,t){const n=Math.max(1,Math.floor((p.length-1)*t));c.beginPath();c.moveTo(p[0].x*S,p[0].y*S);for(let i=1;i<=Math.min(n,p.length-1);i++)c.lineTo(p[i].x*S,p[i].y*S);c.stroke()}
+function drawBase(c,b,S){c.fillStyle="#f2a541";c.save();c.translate(b.x*S,b.y*S);c.rotate(Math.PI/4);c.fillRect(-8,-8,16,16);c.restore()}
+function drawMin(c,m,S,label){c.strokeStyle=label?"#e5615a":"#ffffff";c.lineWidth=3;c.beginPath();c.moveTo(m.x*S-10,m.y*S-10);c.lineTo(m.x*S+10,m.y*S+10);c.moveTo(m.x*S+10,m.y*S-10);c.lineTo(m.x*S-10,m.y*S+10);c.stroke();
+  c.font="500 22px 'IBM Plex Mono',monospace";c.fillStyle=label?"#e5615a":"#ffffff";c.fillText(`${label||"deepest"} ${m.h.toFixed(2)}`,Math.min(m.x*S+14,S-250),Math.max(m.y*S-12,24))}
+function render(){
+  const cv=$("map"),c=cv.getContext("2d"),S=cv.width;
+  if(!anim||!off)buildImage();
+  c.imageSmoothingEnabled=true;c.drawImage(off,0,0,S,S);
+  c.strokeStyle="rgba(216,224,233,.06)";c.lineWidth=1;
+  for(let i=1;i<10;i++){c.beginPath();c.moveTo(i*S/10,0);c.lineTo(i*S/10,S);c.moveTo(0,i*S/10);c.lineTo(S,i*S/10);c.stroke()}
+  c.fillStyle="rgba(216,224,233,.55)";for(const o of obs){c.fillRect(o.x*S-1.2,o.y*S-1.2,2.4,2.4)}
+  for(const r of runs){if(r===lastRun&&anim)continue;for(const a of r.agents){if(!a.known)continue;
+    c.strokeStyle=r===lastRun?"rgba(242,165,65,.9)":"rgba(242,165,65,.32)";c.lineWidth=r===lastRun?3:1.5;line(c,a.pts,S,1);
+    if(r===lastRun&&a.scanR){const e=a.pts[a.pts.length-1];c.strokeStyle="rgba(92,200,214,.6)";c.setLineDash([4,4]);c.beginPath();c.arc(e.x*S,e.y*S,a.scanR*S,0,7);c.stroke();c.setLineDash([])}}}
+  if(anim&&lastRun){for(const a of lastRun.agents){
+      if(!a.known){c.strokeStyle="rgba(229,97,90,.35)";c.setLineDash([3,6]);c.lineWidth=2;line(c,a.pts.slice(0,2),S,1);c.setLineDash([]);continue}
+      c.strokeStyle="#f2a541";c.lineWidth=3;line(c,a.pts,S,anim.t);
+      const p=a.pts[Math.max(0,Math.floor((a.pts.length-1)*anim.t))];c.fillStyle="#fff";c.beginPath();c.arc(p.x*S,p.y*S,5,0,7);c.fill()}}
+  if(lastRun&&!anim)for(const a of lastRun.agents){if(!a.known||a.status==="split")continue;const e=a.pts[a.pts.length-1];
+    c.fillStyle={ok:"#6cc58a",warn:"#f2a541",bad:"#e5615a"}[STAT[a.status][1]];c.beginPath();c.arc(e.x*S,e.y*S,6,0,7);c.fill()}
+  c.strokeStyle="#f2a541";c.lineWidth=2;for(const a of anchors){c.beginPath();c.arc(a.x*S,a.y*S,7,0,7);c.stroke()}
+  drawBase(c,W.base,S);
+  if(path){c.strokeStyle="#ffffff";c.lineWidth=2.5;c.setLineDash([9,7]);line(c,path,S,1);c.setLineDash([]);
+    const e=path[path.length-1];c.fillStyle="#fff";c.beginPath();c.arc(e.x*S,e.y*S,5,0,7);c.fill()}
+  if(showTruth)drawMin(c,W.min,S,"true min");
+}
+function renderReport(){
+  const cv=$("rep"),c=cv.getContext("2d"),Wd=cv.width,H=cv.height,pl=64,pr=56,pt=18,pb=40;c.clearRect(0,0,Wd,H);
+  const r=lastRun,st=$("repStatus");if(!r)return;
+  const known=r.agents.filter(a=>a.known),c0=r.c,travel=c0.energy-r.scanE,MAXC=W.physics.stall,SL=Math.max(9,MAXC*2);
+  if(!known.length){c.fillStyle="#e5615a";c.font="500 26px 'IBM Plex Mono',monospace";c.textAlign="center";c.fillText("SIGNAL LOST",Wd/2,H/2);c.textAlign="left";
+    st.innerHTML='<span class="bad">Nothing came back.</span> This burst node ran out of energy before it could report, so you don\'t know where it died.';return}
+  const all=known.flatMap(a=>a.pts),smax=Math.max(...all.map(p=>p.s))||1;
+  let hl=Math.min(...all.map(p=>p.h)),hh=Math.max(...all.map(p=>p.h));const pad=Math.max(.1,(hh-hl)*.1);hl-=pad;hh+=pad;
+  const X=s=>pl+s/smax*(Wd-pl-pr),Yh=v=>pt+(1-(v-hl)/(hh-hl))*(H-pt-pb),Ye=v=>pt+(1-v/travel)*(H-pt-pb),Ys=v=>pt+(1-(Math.max(-SL,Math.min(SL,v))+SL)/(2*SL))*(H-pt-pb);
+  c.font="20px 'IBM Plex Mono',monospace";c.lineWidth=1;
+  for(let i=0;i<=4;i++){const v=hl+(hh-hl)*i/4,y=Yh(v);c.strokeStyle="rgba(216,224,233,.08)";c.beginPath();c.moveTo(pl,y);c.lineTo(Wd-pr,y);c.stroke();c.fillStyle="#5cc8d6";c.textAlign="right";c.fillText(v.toFixed(2),pl-8,y+6)}
+  c.textAlign="left";c.fillStyle="#f2a541";c.fillText(travel.toFixed(0),Wd-pr+8,Ye(travel)+14);c.fillText("0",Wd-pr+8,Ye(0));
+  c.fillStyle="#8693a3";c.textAlign="center";c.fillText(`distance traveled (0 – ${smax.toFixed(2)})`,(pl+Wd-pr)/2,H-10);c.textAlign="left";
+  const ln=(pts,f,col,w)=>{c.strokeStyle=col;c.lineWidth=w;c.beginPath();pts.forEach((p,i)=>i?c.lineTo(X(p.s),f(p)):c.moveTo(X(p.s),f(p)));c.stroke()};
+  if(c0.sensor==="trace"){
+    c.strokeStyle="rgba(217,130,107,.25)";c.beginPath();c.moveTo(pl,Ys(MAXC));c.lineTo(Wd-pr,Ys(MAXC));c.stroke();
+    for(const a of known){ln(a.pts,p=>Ye(p.E),"#f2a541",2);ln(a.pts.slice(1),p=>Ys(p.sl),"rgba(217,130,107,.85)",1.5);ln(a.pts,p=>Yh(p.h),"#5cc8d6",3.5)}
+  }else{
+    for(const a of known){const e=a.pts[a.pts.length-1];c.fillStyle="#5cc8d6";c.beginPath();c.arc(X(e.s),Yh(e.h),8,0,7);c.fill();c.fillStyle="#f2a541";c.beginPath();c.arc(X(e.s),Ye(e.E),6,0,7);c.fill();
+      c.fillStyle="#d8e0e9";c.textAlign="right";c.fillText(`h ${e.h.toFixed(2)}`,X(e.s)-14,Yh(e.h)+6);c.textAlign="left"}
+  }
+  for(const a of known){if(a.status==="split")continue;const e=a.pts[a.pts.length-1];c.fillStyle={ok:"#6cc58a",warn:"#f2a541",bad:"#e5615a"}[STAT[a.status][1]];c.fillRect(X(e.s)-2,pt,4,H-pt-pb)}
+  const lost=r.agents.length-known.length;
+  st.innerHTML=r.agents.filter(a=>a.status!=="split").map(a=>a.known?`<span class="${STAT[a.status][1]}">${STAT[a.status][0]}${a.slid?" after sliding off the path":""}</span>`:'<span class="bad">one child lost</span>').join(" · ")+
+    (c0.sensor==="end"?" · Endpoint sensor: only the final reading came back.":"")+(lost&&known.length?" · Lost signals sent nothing.":"");
+}
+function updateStats(){$("sTurn").textContent=turn;$("sRes").textContent=reserve;$("sObs").textContent=obs.length;
+  $("sDeep").textContent=obs.length?Math.min(...obs.map(o=>o.z)).toFixed(2):"none"}
+function updateRules(){const p=W.physics;$("rulesList").innerHTML=`
+  <li>Travel costs 2 per map width, plus ${p.climb} per unit climbed. Going downhill costs only distance.</li>
+  <li>Slopes steeper than ${p.stall} stall a node unless its steep rule handles it.</li>
+  <li>Burst nodes that run out of energy send nothing back. Streaming nodes keep what they sent before dying.</li>
+  <li>Energy you commit is spent. Anything left at the end is lost, so estimate carefully.</li>
+  <li>The map estimate is a Gaussian process fit to height readings only. Fog is its uncertainty.</li>`;
+  $("worldDesc").textContent=`World: ${PRESET_NAMES[W.preset]} · seed ${W.seed} · relief ±${W.relief}`}
+
+/* ---------- play input ---------- */
+function nearestAnchor(x,y){let best=null,bd=1e9;for(const a of[W.base,...anchors]){const d=Math.hypot(a.x-x,a.y-y);if(d<bd){bd=d;best=a}}return{x:best.x,y:best.y}}
+let drawing=false;
+function pos(e){const r=$("map").getBoundingClientRect();return{x:clamp((e.clientX-r.left)/r.width),y:clamp((e.clientY-r.top)/r.height)}}
+$("map").addEventListener("pointerdown",e=>{if(anim||turn>=10)return;const p=pos(e);path=[nearestAnchor(p.x,p.y),p];drawing=true;$("map").setPointerCapture(e.pointerId);render();updatePlan()});
+$("map").addEventListener("pointermove",e=>{if(!drawing)return;const p=pos(e),l=path[path.length-1];if(Math.hypot(p.x-l.x,p.y-l.y)>.012){path.push(p);render();updatePlan()}});
+const endDraw=()=>{drawing=false};$("map").addEventListener("pointerup",endDraw);$("map").addEventListener("pointercancel",endDraw);
+const NPRE=[["Ping","rail","end","burst"],["Trace","rail","trace","stream"],["Descender","descend","trace","burst"],["Roller","roll","trace","burst"],["Contour","contour","trace","stream"],["Splitter","split","trace","burst"]];
+NPRE.forEach(p=>{const b=document.createElement("button");b.textContent=p[0];b.onclick=()=>{$("fMove").value=p[1];$("fSensor").value=p[2];$("fReport").value=p[3];markPreset();updatePlan()};$("presets").appendChild(b)});
+function markPreset(){const c=cfg();[...$("presets").children].forEach((b,i)=>{const p=NPRE[i];b.classList.toggle("on",p[1]===c.move&&p[2]===c.sensor&&p[3]===c.report)})}
+["fMove","fSensor","fReport","fStall","fEnergy","fScan"].forEach(id=>$(id).addEventListener("input",()=>{markPreset();updatePlan()}));
+$("bGo").onclick=commit;
+$("bClear").onclick=()=>{path=null;render();updatePlan()};
+$("bTruth").onclick=()=>{showTruth=!showTruth;$("bTruth").classList.toggle("on",showTruth);$("bTruth").setAttribute("aria-pressed",showTruth);$("bTruth").textContent=showTruth?"Hide truth":"Reveal truth";render()};
+$("bNew").onclick=()=>{$("bNew").textContent="Generating…";setTimeout(()=>{newGame(buildWorld(S,(Math.random()*1e9)|0));$("bNew").textContent="New world"},20)};
+
+function newGame(world){
+  W=world;S2=(.5*W.relief)**2;rng=mb(W.seed^0x9e3779b9);obs=[];runs=[];anchors=[];turn=0;reserve=60;lastRun=null;showTruth=false;
+  $("bTruth").classList.remove("on");$("bTruth").textContent="Reveal truth";$("bTruth").setAttribute("aria-pressed","false");
+  $("log").innerHTML="<li>Waiting for first commit.</li>";$("repStatus").textContent="No runs yet. Commit a node to get your first report.";
+  $("rep").getContext("2d").clearRect(0,0,720,380);
+  const b=W.base;path=[{x:b.x,y:b.y},{x:clamp(b.x+(.5-b.x)*.6),y:clamp(b.y+(.5-b.y)*.6)}];
+  fitBelief();render();updatePlan();updateStats();updateRules();
+}
+
+/* ---------- world settings view ---------- */
+const R_=(p,l,min,max,step,fmt)=>({p,l,t:"range",min,max,step,fmt});
+const C_=(p,l)=>({p,l,t:"check"});
+const SCHEMA=[
+  {title:"Preset and seed",ctl:[{p:"preset",l:"Preset",t:"select",opts:PRESET_NAMES},{p:"seed",l:"Seed",t:"seed"},
+    R_("relief","Relief (height range ±)",.2,2,.05),{p:"base",l:"Base position",t:"select",opts:{corner:"Bottom-left corner",random:"Random gentle spot"}}]},
+  {title:"Layered noise",tog:"noise.on",note:"Rolling ground at several scales. More roughness means more small pits to get stuck in.",
+    ctl:[R_("noise.w","Weight",0,1.5,.05),R_("noise.freq","Base frequency",1,6,.1),R_("noise.oct","Octaves",1,7,1),R_("noise.rough","Roughness",.2,.8,.05)]},
+  {title:"Ridges",tog:"ridges.on",note:"Sharp crests with passes between them. Warp bends them into winding walls.",
+    ctl:[R_("ridges.w","Weight",0,1.5,.05),R_("ridges.freq","Frequency",1,5,.1),R_("ridges.oct","Octaves",1,5,1),R_("ridges.warp","Warp",0,.6,.05),C_("ridges.invert","Carve valleys instead of ridges")]},
+  {title:"Test-function basins",tog:"patches.on",note:"Classic optimization landscapes sunk into the map as basins, each with its own trap.",
+    ctl:[R_("patches.w","Depth",0,2,.05),R_("patches.size","Size",.08,.3,.01),C_("patches.rosen","Rosenbrock: long curved valley"),C_("patches.rastr","Rastrigin: egg crate of identical pits"),C_("patches.saddle","Saddle: flat crossing where descenders stall"),C_("patches.ackley","Ackley: one deep hole in rough ground")]},
+  {title:"Blobs",tog:"blobs.on",note:"The original generator: round hills and pits on a flat plain.",
+    ctl:[R_("blobs.w","Weight",0,1.5,.05),R_("blobs.large","Large features",0,20,1),R_("blobs.small","Small features",0,30,1),R_("blobs.pit","Pit share",0,100,5,v=>v+"%")]},
+  {title:"Erosion",tog:"erosion.on",note:"Simulated rain carves branching channels. Slower to generate.",
+    ctl:[R_("erosion.drops","Raindrops",5000,80000,5000,v=>(v/1000)+"k"),R_("erosion.rate","Erosion strength",.1,.6,.05)]},
+  {title:"Fairness rules",note:"If a rule fails, the seed is bumped and the world regenerated, up to 12 times.",
+    ctl:[C_("rules.flatten","Flatten ground around the base"),R_("rules.flatR","Flat radius",.02,.12,.01),C_("rules.minDist","Keep the deepest point away from the base"),R_("rules.dist","Minimum distance",.1,.8,.05),C_("rules.route","Require a stall-free route to the deepest point")]},
+  {title:"Physics",note:"Applies to nodes in the game and to the stall zones in the preview.",
+    ctl:[R_("physics.stall","Steepest climbable slope",2,10,.5),R_("physics.climb","Energy per unit climbed",1,20,.5)]}];
+const fid=p=>"w-"+p.replace(/\./g,"-");
+function buildForm(){
+  const root=$("wform");
+  SCHEMA.forEach((sec,si)=>{
+    const d=document.createElement("section");d.className="sec";d.dataset.tog=sec.tog||"";
+    const head=document.createElement("div");head.className="sechead";
+    const h2=document.createElement("h2");h2.textContent=sec.title;head.appendChild(h2);
+    if(sec.tog){const l=document.createElement("label");l.innerHTML=`<input type="checkbox" id="${fid(sec.tog)}"> On`;head.appendChild(l)}
+    d.appendChild(head);
+    if(sec.note){const p=document.createElement("p");p.className="note";p.textContent=sec.note;d.appendChild(p)}
+    const f=document.createElement("div");f.className="form";
+    for(const c of sec.ctl){const id=fid(c.p);let el;
+      if(c.t==="range"){el=document.createElement("div");el.className="slider";el.innerHTML=`<div class="top"><label for="${id}">${c.l}</label><output id="${id}-o"></output></div><input type="range" id="${id}" min="${c.min}" max="${c.max}" step="${c.step}">`}
+      else if(c.t==="check"){el=document.createElement("label");el.className="check";el.innerHTML=`<input type="checkbox" id="${id}"> ${c.l}`}
+      else if(c.t==="select"){el=document.createElement("label");el.setAttribute("for",id);el.innerHTML=`${c.l}<select id="${id}">${Object.entries(c.opts).map(([k,v])=>`<option value="${k}">${v}</option>`).join("")}</select>`}
+      else if(c.t==="seed"){el=document.createElement("div");el.className="lbl";el.innerHTML=`<label for="${id}">${c.l}</label><div class="seedrow"><input type="number" id="${id}" step="1"><button id="bSeed" type="button">Random</button></div>`}
+      f.appendChild(el)}
+    d.appendChild(f);root.appendChild(d);
+  });
+  const all=[...SCHEMA.flatMap(s=>s.ctl),...SCHEMA.filter(s=>s.tog).map(s=>({p:s.tog,t:"check"}))];
+  for(const c of all){const el=$(fid(c.p));el.addEventListener(c.t==="range"||c.t==="seed"?"input":"change",()=>{
+    let v=c.t==="check"?el.checked:c.t==="select"?el.value:+el.value;
+    if(c.t==="seed"&&!Number.isFinite(v))return;
+    if(c.p==="preset"){if(v!=="custom"){const pr=PRESETS[v];for(const k of LAYERS)S[k]=clone(pr[k]);S.relief=pr.relief}S.preset=v}
+    else{setP(S,c.p,v);if(LAYERS.includes(c.p.split(".")[0])||c.p==="relief")S.preset="custom"}
+    syncForm();schedule()})}
+  $("bSeed").onclick=()=>{S.seed=(Math.random()*1e9)|0;syncForm();schedule()};
+}
+function syncForm(){
+  for(const c of SCHEMA.flatMap(s=>s.ctl)){const el=$(fid(c.p)),v=getP(S,c.p);
+    if(c.t==="check")el.checked=v;else el.value=v;
+    if(c.t==="range")$(fid(c.p)+"-o").textContent=c.fmt?c.fmt(v):(+v).toFixed(c.step<1?(c.step<.1?2:1):0)}
+  document.querySelectorAll(".sec").forEach(d=>{if(d.dataset.tog){const v=getP(S,d.dataset.tog);$(fid(d.dataset.tog)).checked=v;d.classList.toggle("off",!v)}});
+}
+let tm=null;
+function schedule(){$("genstate").textContent="Generating…";clearTimeout(tm);tm=setTimeout(regen,220)}
+function regen(){
+  const t0=performance.now();PW=buildWorld(S);const ms=performance.now()-t0;
+  try{localStorage.setItem(KEY,JSON.stringify({...S,v:2}))}catch(e){}
+  drawPreview();
+  const st=PW.stats,ch=(l,v,cls)=>`<div class="chip ${cls||""}">${l} <b>${v}</b></div>`;
+  $("wstats").innerHTML=ch("Steep",st.steep.toFixed(0)+"%")+ch("Flat",st.flat.toFixed(0)+"%")+ch("Pits",st.pits)+ch("Deepest",PW.min.h.toFixed(2))+
+    ch("Base→deepest",PW.dist.toFixed(2),S.rules.minDist?(PW.dist>=S.rules.dist?"good":"bad"):"")+ch("Route",PW.route?"found":"none",PW.route?"good":"bad");
+  $("genstate").textContent=`Seed used ${PW.seed}${PW.tries?` after ${PW.tries} reroll${PW.tries>1?"s":""}`:""} · generated in ${Math.round(ms)} ms`+(PW.ok?"":" · Couldn't meet every rule in 12 tries. Showing the last attempt.");
+}
+function drawPreview(){
+  const cv=$("wmap"),c=cv.getContext("2d"),Sz=cv.width,off2=document.createElement("canvas");off2.width=off2.height=NG;
+  const ctx=off2.getContext("2d"),img=ctx.createImageData(NG,NG),H=PW.H,band=PW.relief/6,show=$("ovStall").checked;
+  for(let j=0;j<NG;j++)for(let i=0;i<NG;i++){const k=j*NG+i,b=Math.floor(H[k]/band);let col=ramp(H[k],PW.relief);
+    if((i<NG-1&&Math.floor(H[k+1]/band)!==b)||(j<NG-1&&Math.floor(H[k+NG]/band)!==b))col=col.map(v=>v*.62);
+    if(show&&PW.cls[k]===1)col=col.map((v,q)=>v*.35+[229,97,90][q]*.65);else if(show&&PW.cls[k]===2)col=col.map((v,q)=>v*.5+[175,169,236][q]*.5);
+    img.data[k*4]=col[0];img.data[k*4+1]=col[1];img.data[k*4+2]=col[2];img.data[k*4+3]=255}
+  ctx.putImageData(img,0,0);c.imageSmoothingEnabled=true;c.drawImage(off2,0,0,Sz,Sz);
+  if($("ovRoute").checked&&PW.route){c.strokeStyle="#f2a541";c.lineWidth=3;c.setLineDash([6,6]);c.beginPath();
+    PW.route.forEach((k,i)=>{const x=(k%NG)/(NG-1)*Sz,y=Math.floor(k/NG)/(NG-1)*Sz;i?c.lineTo(x,y):c.moveTo(x,y)});c.stroke();c.setLineDash([])}
+  drawBase(c,PW.base,Sz);drawMin(c,PW.min,Sz);
+}
+$("ovStall").onchange=drawPreview;$("ovRoute").onchange=drawPreview;
+$("bUse").onclick=()=>{if(PW){newGame(PW);location.hash=""}};
+$("bReset").onclick=()=>{const seed=S.seed;S=clone(DEF);S.seed=seed;syncForm();schedule()};
+
+/* ---------- views ---------- */
+function route(){const w=location.hash==="#world";$("viewWorld").hidden=!w;$("viewPlay").hidden=w;$("playStats").hidden=w;
+  $("navWorld").classList.toggle("on",w);$("navPlay").classList.toggle("on",!w);
+  $("navWorld").setAttribute("aria-current",w?"page":"false");$("navPlay").setAttribute("aria-current",w?"false":"page");
+  if(w&&PW)drawPreview()}
+$("navPlay").onclick=e=>{e.preventDefault();history.replaceState(null,"",location.pathname+location.search);route()};
+window.addEventListener("hashchange",route);
+
+$("fMove").value="rail";$("fSensor").value="trace";$("fReport").value="stream";markPreset();
+buildForm();syncForm();
+regen();
+newGame(PW);
+route();
+</script>
+</body>
+</html>
