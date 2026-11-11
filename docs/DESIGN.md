@@ -94,11 +94,11 @@ Presets: Ping, Trace, Descender, Roller, Contour, Splitter.
 
 ## 5. Energy
 
-- Game: 60 reserve, 10 turns. Committing takes the slider value (1–12) from the reserve. No refunds or income.
+- Game defaults: 60 reserve, 10 rounds, up to 12 energy per node. All three are set on the start screen. Committing takes the slider value from the reserve. No income.
 - Per step (0.004 map widths): `distance × 2 × multiplier + climb × max(0, height gained)`. Climb cost defaults to 10. Downhill costs only distance.
 - A share of committed energy can be set aside for an end scan; radius `0.03 + 0.025 × scan energy`, capped at 0.2. It fires only if the node ends alive.
 - Stalling is independent of energy: any step with slope above the stall limit (default 4.5) triggers the steep rule.
-- Leftover energy when a node stops is lost.
+- Leftover energy when a surviving node stops is lost by default. The start screen can return half or all of it to the reserve.
 - Split divides remaining energy equally among 3 children.
 
 ## 6. Belief map
@@ -115,7 +115,8 @@ Known limits: slope readings are recorded but not used by the estimate; the fixe
 
 ## 7. Interface
 
-- **Play view:** belief map with fog, path drawing, node loadout, forecast, report chart (height, slope along heading, energy vs distance), run log, rules summary.
+- **Start view** (default): mission brief, world type, random-seed toggle, and game settings: rounds (3–30), energy reserve (10–200), most energy per node (4–30), sensor noise (0–0.1), what happens to leftover energy, and whether "Reveal truth" is allowed mid-game. Presets: Relaxed (15 rounds, 100 energy), Standard (10, 60), Tight (8, 40). Settings persist in `localStorage` and are snapshotted when a game starts, so changing them does not alter a game in progress.
+- **Play view** (`#play`): belief map with fog, path drawing, node loadout, forecast, report chart (height, slope along heading, energy vs distance), run log, rules summary.
 - **World settings view** (`#world`): preset, seed, layers, fairness rules, physics; live preview of true terrain with stall zones, a stall-free route, deepest point, and stats (steep %, flat %, pits, distance, route).
 - World settings persist in `localStorage`.
 - Art direction: a neon instrument console. Black panels, amber for the player's signals and interface chrome, phosphor green for terrain and readings, cyan for the slope trace, red for alerts, violet for flat ground. Hazard striping, scanlines, square corners, condensed uppercase display type with monospace readouts. The mood is taken from anime control-room displays (Neon Genesis Evangelion was the stated inspiration); no logos, names, or graphics from any existing work are used.
@@ -134,8 +135,8 @@ Known limits: slope readings are recorded but not used by the estimate; the fixe
 
 1. **Goals and opponents.** Deliberately deferred. Notes: do not put the prize at the global minimum or plain descent solves the game; consider a moving target that responds; for player-versus-player, scanning should reveal the scanner.
 2. **Balance.** Stall limit, climb cost, reserve, turn count, and fog clearing rate are untested guesses.
-3. **Leftover energy.** Lost, refunded in part, or banked in the node?
+3. **Leftover energy.** Now a start-screen option (lost, half, all). Which should be the default, and should it instead be banked in the node?
 4. **Belief upgrades as "cost of intelligence".** Raw dots → smoothed map → uncertainty shading → slope-aware estimate.
 5. **Rules as code.** Menus now; a small scripting layer is a possible later direction.
 6. **Dynamic world.** Hidden fields beyond height (interference, opponent signal) that appear only in reports.
-7. **End state.** There is no win, loss, or scoring screen.
+7. **End state.** When rounds or reserve run out, the forecast panel shows the deepest reading against the true minimum. There is no scoring or win/loss screen yet.

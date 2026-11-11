@@ -10,10 +10,11 @@ Open `index.html` in any modern browser. There is no build step and no dependenc
 
 To host it, enable GitHub Pages for this repo (Settings → Pages → deploy from branch `main`, folder `/`).
 
+0. **Start screen.** Set rounds, energy reserve, energy per node, sensor noise, and world type, then start.
 1. **Plot a path.** Tap the map for a straight line from the nearest node, or drag to draw. The forecast panel shows the estimated cost ± uncertainty against the energy you have committed.
 2. **Pick a node loadout.** Use a preset (Ping, Trace, Descender, Roller, Contour, Splitter) or set the menus and sliders yourself.
 3. **Commit.** The run plays out on the real terrain. The report chart shows height, slope along the heading, and energy against distance traveled. New readings lift the fog.
-4. **Repeat** for 10 turns on a 60-energy reserve. "Reveal truth" shows the real terrain and its deepest point.
+4. **Repeat** until your rounds or reserve run out (10 rounds and 60 energy by default). "Reveal truth" shows the real terrain and its deepest point.
 
 The **World settings** tab controls terrain generation: presets, seed, five stackable layers, fairness rules, and physics, with a live preview.
 

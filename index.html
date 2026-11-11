@@ -95,6 +95,11 @@ input[type=range]{width:100%;accent-color:var(--signal)}
 .seedrow{display:flex;gap:6px}
 .seedrow button{white-space:nowrap}
 #genstate{font-size:12px;color:var(--muted);min-height:18px;margin-top:6px}
+.brief{margin:0 0 8px;font-size:13.5px}
+.steps{margin:0;padding-left:20px;font-size:12.5px;color:var(--muted)}
+.steps li{margin:3px 0}
+.steps li::marker{color:var(--signal)}
+a.inl{color:var(--signal);text-transform:none;letter-spacing:0;font-size:12.5px}
 [hidden]{display:none!important}
 @media(prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
@@ -104,10 +109,10 @@ input[type=range]{width:100%;accent-color:var(--signal)}
 <header>
   <div class="brand">
     <h1>Signal <span>Search</span></h1>
-    <nav aria-label="Views"><a href="#" id="navPlay" class="on">Play</a><a href="#world" id="navWorld">World settings</a></nav>
+    <nav aria-label="Views"><a href="#" id="navStart" class="on">Start</a><a href="#play" id="navPlay">Play</a><a href="#world" id="navWorld">World</a></nav>
   </div>
-  <div class="stats" id="playStats">
-    <div class="chip">Turn <b id="sTurn">0</b>/10</div>
+  <div class="stats" id="playStats" hidden>
+    <div class="chip">Round <b id="sTurn">0</b>/<span id="sMax">10</span></div>
     <div class="chip">Reserve <b id="sRes">60</b></div>
     <div class="chip">Readings <b id="sObs">0</b></div>
     <div class="chip">Deepest reading <b id="sDeep">none</b></div>
@@ -115,7 +120,55 @@ input[type=range]{width:100%;accent-color:var(--signal)}
 </header>
 
 <!-- PLAY VIEW -->
-<div class="grid" id="viewPlay">
+<!-- START VIEW -->
+<div class="grid" id="viewStart">
+  <div class="stack">
+    <div class="card">
+      <h2>Mission brief</h2>
+      <p class="brief">The terrain is hidden. Send signals along paths you draw, read what they report, and find the deepest point you can before your rounds or energy run out.</p>
+      <ol class="steps">
+        <li>Plot a path on the map from one of your nodes.</li>
+        <li>Choose a node loadout and how much energy to commit.</li>
+        <li>Commit, read the report, and watch the fog lift.</li>
+      </ol>
+      <div class="form">
+        <label for="gWorld">World type
+          <select id="gWorld"></select></label>
+        <div class="lbl"><span>Terrain layers</span><a href="#world" class="inl">Open world settings</a></div>
+        <label class="check"><input type="checkbox" id="gRandSeed"> Use a new random seed each game</label>
+      </div>
+      <div class="plan" id="gSummary"></div>
+      <div class="row"><button class="go" id="bStart">Start new game</button></div>
+      <p class="hint" id="gResume" hidden>A game is in progress. <a href="#play" class="inl">Return to it</a>, or start a new one with these settings.</p>
+    </div>
+  </div>
+  <div class="stack">
+    <div class="card">
+      <h2>Game settings</h2>
+      <div class="presets" id="gPresets"></div>
+      <div class="form">
+        <div class="slider"><div class="top"><label for="gRounds">Rounds</label><output id="gRounds-o"></output></div>
+          <input id="gRounds" type="range" min="3" max="30" step="1"></div>
+        <div class="slider"><div class="top"><label for="gReserve">Energy reserve</label><output id="gReserve-o"></output></div>
+          <input id="gReserve" type="range" min="10" max="200" step="5"></div>
+        <div class="slider"><div class="top"><label for="gMaxNode">Most energy one node can carry</label><output id="gMaxNode-o"></output></div>
+          <input id="gMaxNode" type="range" min="4" max="30" step="1"></div>
+        <div class="slider"><div class="top"><label for="gNoise">Sensor noise</label><output id="gNoise-o"></output></div>
+          <input id="gNoise" type="range" min="0" max="0.1" step="0.01"></div>
+        <label for="gRefund" style="grid-column:span 2">Energy a node has left when it stops
+          <select id="gRefund">
+            <option value="0">Lost</option>
+            <option value="0.5">Half returns to the reserve</option>
+            <option value="1">All returns to the reserve</option>
+          </select></label>
+        <label class="check"><input type="checkbox" id="gReveal"> Allow "Reveal truth" during a game</label>
+      </div>
+      <div class="row"><button id="bGReset">Reset to standard</button></div>
+    </div>
+  </div>
+</div>
+
+<div class="grid" id="viewPlay" hidden>
   <div class="stack">
     <div class="card">
       <canvas id="map" class="map" width="640" height="640" aria-label="Belief map. Tap or drag to plot a signal path."></canvas>
@@ -315,6 +368,13 @@ function buildWorld(S,seed){
   w.ok=false;return w;
 }
 
+/* ---------- game settings ---------- */
+const GDEF={rounds:10,reserve:60,maxNode:12,noise:.02,refund:0,reveal:true,randSeed:true};
+const GKEY="signal-search-game-v1";
+let GS={...GDEF},GM={...GDEF};
+try{const g=JSON.parse(localStorage.getItem(GKEY)||"null");if(g)GS={...GDEF,...g}}catch(e){}
+const fmtE=v=>Number.isInteger(v)?String(v):v.toFixed(1);
+
 /* ---------- game state ---------- */
 let W,obs,runs,anchors,turn,reserve,path,showTruth,belief,lastRun,anim=null,rng,S2=.36,PW=null;
 function cub(p0,p1,p2,p3,t){return p1+.5*t*(p2-p0+t*(2*p0-5*p1+4*p2-p3+t*(3*(p1-p2)+p3-p0)))}
@@ -325,7 +385,7 @@ function grad(x,y){const e=.002;return[(h(x+e,y)-h(x-e,y))/(2*e),(h(x,y+e)-h(x,y
 function gauss(){let u=0,v=0;while(!u)u=rng();while(!v)v=rng();return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v)}
 
 function addObs(x,y){
-  const z=h(x,y)+gauss()*.02;
+  const z=h(x,y)+gauss()*GM.noise;
   for(const o of obs){if(Math.hypot(o.x-x,o.y-y)<.016){o.z=(o.z*o.n+z)/(o.n+1);o.n++;return}}
   if(obs.length<MAXOBS)obs.push({x,y,z,n:1});
 }
@@ -417,8 +477,9 @@ const STAT={arrived:["reached end","ok"],stalled:["stalled on a steep slope","wa
 function updatePlan(){
   const c=cfg(),scanE=c.energy*c.scan/100,travel=c.energy-scanE,el=$("plan"),MAXC=W.physics.stall,CL=W.physics.climb;
   $("oEnergy").textContent=c.energy;$("oScan").textContent=c.scan+"%";
-  $("bGo").disabled=!path||turn>=10||c.energy>reserve;
-  if(turn>=10){el.innerHTML='<span class="warn">All 10 turns used.</span> Reveal truth to compare, or start a new world.';return}
+  $("bGo").disabled=!path||turn>=GM.rounds||c.energy>reserve;
+  if(turn>=GM.rounds||reserve<1){const best=obs.length?Math.min(...obs.map(o=>o.z)):null;
+    el.innerHTML=`<span class="warn">${turn>=GM.rounds?"All rounds used.":"Reserve is empty."}</span> Game over.<div class="big">Deepest reading ${best===null?"none":best.toFixed(2)} · true minimum ${W.min.h.toFixed(2)}</div>Reveal truth to compare the maps, or start a new game.`;$("bGo").disabled=true;return}
   if(!path){el.innerHTML="Plot a path on the map to see a cost estimate from your current map.";return}
   const P=resample(path,.01),m=mult(c);let cost=0,L=0,sdS=0,steep=-1;
   for(let i=1;i<P.length;i++){const a=P[i-1],b=P[i],ds=Math.hypot(b.x-a.x,b.y-a.y);if(!ds)continue;const ma=interp(belief.mean,a.x,a.y),mb_=interp(belief.mean,b.x,b.y),dh=mb_-ma;
@@ -437,7 +498,7 @@ function updatePlan(){
 }
 
 function commit(){
-  const c=cfg();if(!path||turn>=10||c.energy>reserve)return;
+  const c=cfg();if(!path||turn>=GM.rounds||c.energy>reserve)return;
   reserve-=c.energy;turn++;
   const scanE=c.energy*c.scan/100,agents=runAgent(path[0].x,path[0].y,path.slice(1),c.energy-scanE,c,0,0);
   const leaves=agents.filter(a=>a.status!=="split"),scanEach=scanE/Math.max(1,leaves.length);
@@ -460,11 +521,13 @@ function applyRun(r){
       for(let i=0;i<12;i++){const t=(i+.5)/12*Math.PI*2;addObs(clamp(last.x+Math.cos(t)*R),clamp(last.y+Math.sin(t)*R))}}
     if(a.status!=="dead"&&a.status!=="split")anchors.push({x:last.x,y:last.y});
   }
+  r.refund=0;
+  if(GM.refund){let left=0;for(const a of r.agents)if(a.status!=="dead"&&a.status!=="split")left+=a.E;r.refund=Math.round(left*GM.refund*10)/10;reserve=Math.round((reserve+r.refund)*10)/10}
   fitBelief();
   const names={rail:"Path",descend:"Descend",roll:"Roll",contour:"Contour",split:"Split"};
   const parts=r.agents.filter(a=>a.status!=="split").map(a=>a.known?`${STAT[a.status][0]}${a.slid?" (slid)":""}, ${a.E.toFixed(1)} left`:"signal lost");
   const li=document.createElement("li");
-  li.textContent=`T${r.turn} · ${names[r.c.move]}/${r.c.sensor==="trace"?"Trace":"End"}/${r.c.report==="stream"?"Stream":"Burst"} · E${r.c.energy} → ${parts.join("; ")}`;
+  li.textContent=`T${r.turn} · ${names[r.c.move]}/${r.c.sensor==="trace"?"Trace":"End"}/${r.c.report==="stream"?"Stream":"Burst"} · E${r.c.energy} → ${parts.join("; ")}${r.refund?` · ${fmtE(r.refund)} back to reserve`:""}`;
   const log=$("log");if(runs.length===1)log.innerHTML="";log.prepend(li);
 }
 
@@ -537,13 +600,14 @@ function renderReport(){
   st.innerHTML=r.agents.filter(a=>a.status!=="split").map(a=>a.known?`<span class="${STAT[a.status][1]}">${STAT[a.status][0]}${a.slid?" after sliding off the path":""}</span>`:'<span class="bad">one child lost</span>').join(" · ")+
     (c0.sensor==="end"?" · Endpoint sensor: only the final reading came back.":"")+(lost&&known.length?" · Lost signals sent nothing.":"");
 }
-function updateStats(){$("sTurn").textContent=turn;$("sRes").textContent=reserve;$("sObs").textContent=obs.length;
+function updateStats(){$("sTurn").textContent=turn;$("sMax").textContent=GM.rounds;$("sRes").textContent=fmtE(reserve);$("bTruth").hidden=!GM.reveal&&turn<GM.rounds&&reserve>=1;$("sObs").textContent=obs.length;
   $("sDeep").textContent=obs.length?Math.min(...obs.map(o=>o.z)).toFixed(2):"none"}
 function updateRules(){const p=W.physics;$("rulesList").innerHTML=`
   <li>Travel costs 2 per map width, plus ${p.climb} per unit climbed. Going downhill costs only distance.</li>
   <li>Slopes steeper than ${p.stall} stall a node unless its steep rule handles it.</li>
   <li>Burst nodes that run out of energy send nothing back. Streaming nodes keep what they sent before dying.</li>
-  <li>Energy you commit is spent. Anything left at the end is lost, so estimate carefully.</li>
+  <li>${GM.refund?(GM.refund<1?"Half of":"All of")+" the energy a surviving node has left returns to the reserve.":"Energy you commit is spent. Anything left at the end is lost, so estimate carefully."}</li>
+  <li>${GM.rounds} rounds, ${GM.reserve} energy in reserve, up to ${GM.maxNode} per node. Readings carry noise of about ${GM.noise.toFixed(2)}.</li>
   <li>The map estimate is a Gaussian process fit to height readings only. Fog is its uncertainty.</li>`;
   $("worldDesc").textContent=`World: ${PRESET_NAMES[W.preset]} · seed ${W.seed} · relief ±${W.relief}`}
 
@@ -551,7 +615,7 @@ function updateRules(){const p=W.physics;$("rulesList").innerHTML=`
 function nearestAnchor(x,y){let best=null,bd=1e9;for(const a of[W.base,...anchors]){const d=Math.hypot(a.x-x,a.y-y);if(d<bd){bd=d;best=a}}return{x:best.x,y:best.y}}
 let drawing=false;
 function pos(e){const r=$("map").getBoundingClientRect();return{x:clamp((e.clientX-r.left)/r.width),y:clamp((e.clientY-r.top)/r.height)}}
-$("map").addEventListener("pointerdown",e=>{if(anim||turn>=10)return;const p=pos(e);path=[nearestAnchor(p.x,p.y),p];drawing=true;$("map").setPointerCapture(e.pointerId);render();updatePlan()});
+$("map").addEventListener("pointerdown",e=>{if(anim||turn>=GM.rounds||reserve<1)return;const p=pos(e);path=[nearestAnchor(p.x,p.y),p];drawing=true;$("map").setPointerCapture(e.pointerId);render();updatePlan()});
 $("map").addEventListener("pointermove",e=>{if(!drawing)return;const p=pos(e),l=path[path.length-1];if(Math.hypot(p.x-l.x,p.y-l.y)>.012){path.push(p);render();updatePlan()}});
 const endDraw=()=>{drawing=false};$("map").addEventListener("pointerup",endDraw);$("map").addEventListener("pointercancel",endDraw);
 const NPRE=[["Ping","rail","end","burst"],["Trace","rail","trace","stream"],["Descender","descend","trace","burst"],["Roller","roll","trace","burst"],["Contour","contour","trace","stream"],["Splitter","split","trace","burst"]];
@@ -564,7 +628,7 @@ $("bTruth").onclick=()=>{showTruth=!showTruth;$("bTruth").classList.toggle("on",
 $("bNew").onclick=()=>{$("bNew").textContent="Generating…";setTimeout(()=>{newGame(buildWorld(S,(Math.random()*1e9)|0));$("bNew").textContent="New world"},20)};
 
 function newGame(world){
-  W=world;S2=(.5*W.relief)**2;rng=mb(W.seed^0x9e3779b9);obs=[];runs=[];anchors=[];turn=0;reserve=60;lastRun=null;showTruth=false;
+  W=world;S2=(.5*W.relief)**2;rng=mb(W.seed^0x9e3779b9);obs=[];runs=[];anchors=[];GM={...GS};turn=0;reserve=GM.reserve;$("fEnergy").max=GM.maxNode;$("fEnergy").value=Math.min(6,GM.maxNode,GM.reserve);lastRun=null;showTruth=false;
   $("bTruth").classList.remove("on");$("bTruth").textContent="Reveal truth";$("bTruth").setAttribute("aria-pressed","false");
   $("log").innerHTML="<li>Waiting for first commit.</li>";$("repStatus").textContent="No runs yet. Commit a node to get your first report.";
   $("rep").getContext("2d").clearRect(0,0,720,380);
@@ -650,15 +714,40 @@ function drawPreview(){
   drawBase(c,PW.base,Sz);drawMin(c,PW.min,Sz);
 }
 $("ovStall").onchange=drawPreview;$("ovRoute").onchange=drawPreview;
-$("bUse").onclick=()=>{if(PW){newGame(PW);location.hash=""}};
+$("bUse").onclick=()=>{if(PW){newGame(PW);location.hash="play"}};
 $("bReset").onclick=()=>{const seed=S.seed;S=clone(DEF);S.seed=seed;syncForm();schedule()};
 
+/* ---------- start view ---------- */
+const GPRE=[["Relaxed",{rounds:15,reserve:100,maxNode:14}],["Standard",{rounds:10,reserve:60,maxNode:12}],["Tight",{rounds:8,reserve:40,maxNode:10}]];
+const GCTL=[["gRounds","rounds",0],["gReserve","reserve",0],["gMaxNode","maxNode",0],["gNoise","noise",2]];
+function saveGS(){try{localStorage.setItem(GKEY,JSON.stringify(GS))}catch(e){}}
+function syncStart(){
+  for(const[id,k,d]of GCTL){$(id).value=GS[k];$(id+"-o").textContent=(+GS[k]).toFixed(d)}
+  $("gRefund").value=String(GS.refund);$("gReveal").checked=GS.reveal;$("gRandSeed").checked=GS.randSeed;$("gWorld").value=S.preset;
+  [...$("gPresets").children].forEach((b,i)=>b.classList.toggle("on",Object.entries(GPRE[i][1]).every(([k,v])=>GS[k]===v)));
+  const per=GS.reserve/GS.rounds,warn=GS.maxNode>GS.reserve?' <span class="warn">One node can carry more than the whole reserve.</span>':"";
+  $("gSummary").innerHTML=`<div class="big">${GS.rounds} rounds · ${GS.reserve} energy</div><div>About ${per.toFixed(1)} energy per round if spent evenly. World: ${PRESET_NAMES[S.preset]}, ${GS.randSeed?"random seed":"seed "+S.seed}.${warn}</div>`;
+  $("gResume").hidden=!(turn>0&&turn<GM.rounds&&reserve>=1);
+}
+GPRE.forEach(([n,v])=>{const b=document.createElement("button");b.textContent=n;b.onclick=()=>{Object.assign(GS,v);saveGS();syncStart()};$("gPresets").appendChild(b)});
+$("gWorld").innerHTML=Object.entries(PRESET_NAMES).map(([k,v])=>`<option value="${k}">${v}</option>`).join("");
+for(const[id,k]of GCTL)$(id).addEventListener("input",()=>{GS[k]=+$(id).value;saveGS();syncStart()});
+$("gRefund").onchange=()=>{GS.refund=+$("gRefund").value;saveGS();syncStart()};
+$("gReveal").onchange=()=>{GS.reveal=$("gReveal").checked;saveGS();syncStart()};
+$("gRandSeed").onchange=()=>{GS.randSeed=$("gRandSeed").checked;saveGS();syncStart()};
+$("gWorld").onchange=()=>{const w=$("w-preset");w.value=$("gWorld").value;w.dispatchEvent(new Event("change"));syncStart()};
+$("bGReset").onclick=()=>{GS={...GDEF};saveGS();syncStart()};
+$("bStart").onclick=()=>{const b=$("bStart");b.textContent="Generating…";b.disabled=true;
+  setTimeout(()=>{if(GS.randSeed){S.seed=(Math.random()*1e9)|0;syncForm()}clearTimeout(tm);regen();newGame(PW);b.textContent="Start new game";b.disabled=false;location.hash="play"},20)};
+
 /* ---------- views ---------- */
-function route(){const w=location.hash==="#world";$("viewWorld").hidden=!w;$("viewPlay").hidden=w;$("playStats").hidden=w;
-  $("navWorld").classList.toggle("on",w);$("navPlay").classList.toggle("on",!w);
-  $("navWorld").setAttribute("aria-current",w?"page":"false");$("navPlay").setAttribute("aria-current",w?"false":"page");
-  if(w&&PW)drawPreview()}
-$("navPlay").onclick=e=>{e.preventDefault();history.replaceState(null,"",location.pathname+location.search);route()};
+function route(){const v=location.hash==="#world"?"world":location.hash==="#play"?"play":"start";
+  $("viewWorld").hidden=v!=="world";$("viewPlay").hidden=v!=="play";$("viewStart").hidden=v!=="start";$("playStats").hidden=v!=="play";
+  for(const[id,n]of[["navStart","start"],["navPlay","play"],["navWorld","world"]]){$(id).classList.toggle("on",v===n);$(id).setAttribute("aria-current",v===n?"page":"false")}
+  if(v==="world"&&PW)drawPreview();
+  if(v==="start")syncStart();
+  if(v==="play"){render();renderReport();updatePlan();updateStats()}}
+$("navStart").onclick=e=>{e.preventDefault();history.replaceState(null,"",location.pathname+location.search);route()};
 window.addEventListener("hashchange",route);
 
 $("fMove").value="rail";$("fSensor").value="trace";$("fReport").value="stream";markPreset();
